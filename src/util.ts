@@ -1,0 +1,55 @@
+import { ACCEPT_EMOJI, DECLINE_EMOJI } from ".";
+import { Message, MessageReaction, User } from "discord.js";
+
+export function* createRange(start: number, end: number) {
+  for (let i = start; i < end; i++) {
+    yield i;
+  }
+}
+
+export function logMessage(msg: Message) {
+  console.log(
+    `[${msg.createdAt.toISOString()}] ${msg.author.tag}: ${msg.content}`
+  );
+}
+
+/**
+ * @param msg Received message
+ * @param prompt Question to ask for confirmation
+ * @param onAccept Callback on accept
+ * @param onDecline Callback on decline
+ * @param timeout Timeout for waiting confirmation
+ */
+export async function askConfirmation(
+  msg: Message,
+  prompt: string,
+  onAccept: () => any,
+  onDecline: () => any,
+  timeout?: number
+) {
+  const reply = await msg.reply(prompt);
+
+  // Add reactions for confirming action
+  await reply.react(ACCEPT_EMOJI);
+  await reply.react(DECLINE_EMOJI);
+  // Await click on reaction
+  try {
+    const reactions = await reply.awaitReactions(
+      (reaction: MessageReaction, user: User) =>
+        user.id === msg.author.id &&
+        [ACCEPT_EMOJI, DECLINE_EMOJI].includes(reaction.emoji.name),
+      { max: 1, time: timeout ?? 30e3 }
+    );
+    const reaction = reactions.find(reaction =>
+      reaction.users.cache.has(msg.author.id)
+    );
+    if (reaction?.emoji.name === ACCEPT_EMOJI) {
+      await onAccept();
+    } else if (reaction?.emoji.name === DECLINE_EMOJI) {
+      await onDecline();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  reply.delete();
+}
