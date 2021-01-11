@@ -11,22 +11,32 @@ import {
   startGame
 } from "./signups";
 
+import dotenv from "dotenv";
 import { listHelp } from "./help";
 import { logMessage } from "./util";
 
+dotenv.config();
+
+if (
+  !process.env.client_id ||
+  !process.env.client_secret ||
+  !process.env.client_token
+) {
+  console.error(".env variables missing");
+  process.exit(1);
+}
+
+export const client_id = process.env.client_id;
+export const client_secret = process.env.client_secret;
+export const client_token = process.env.client_token;
+
 // TODO: Move tokens and secrets to configuration file
-export const client_id = "796138204762865695";
-const client_secret = "lKWa8XGA3Sy2mhTlcWq8xA3WxYy3JS80";
-const client_token =
-  "Nzk2MTM4MjA0NzYyODY1Njk1.X_Tjew.d6gfUZteOqU8kiWvDnT8YvP5wKE";
 export const PREFIX = "!";
-export const MAX_PLAYERS = process.env.NODE_ENV === "production" ? 9 : 5;
+export const MAX_PLAYERS = process.env.NODE_ENV === "production" ? 9 : 30;
 export const ACCEPT_EMOJI = "✅";
 export const DECLINE_EMOJI = "❌";
 
-export type Player = string;
-export let narratorId: string | null = null;
-const players: Player[] = [];
+export type Player = Discord.Snowflake;
 
 export interface Commands {
   [key: string]: {
@@ -45,22 +55,19 @@ const commands: Commands = {
     helpText: "<recipient> deny permission to send messages in town square"
   },
   join: {
-    fn: msg => signUp(msg, players),
+    fn: signUp,
     helpText: "sign up for the upcoming game"
   },
   leave: {
-    fn: msg => leaveGame(msg, players),
+    fn: leaveGame,
     helpText: "leave the upcoming game"
   },
   playerlist: {
-    fn: msg => listPlayers(msg, players),
+    fn: listPlayers,
     helpText: "list players currently signed up for the upcoming game"
   },
   setnarrator: {
-    fn: msg =>
-      setNarrator(msg, narratorId, id => {
-        narratorId = id;
-      }),
+    fn: setNarrator,
     helpText: "[narrator] set narrator for the upcoming game"
   },
   setphasetime: {
@@ -72,7 +79,7 @@ const commands: Commands = {
     helpText: "set current channel as signup channel"
   },
   start: {
-    fn: msg => startGame(msg, narratorId, players),
+    fn: startGame,
     helpText: "start the game"
   },
   ventriloquist: {
@@ -96,6 +103,7 @@ client.on("message", async msg => {
   if (msg.content.charAt(0) !== PREFIX) {
     return;
   }
+
   // Log message for reference
   logMessage(msg);
 

@@ -1,13 +1,29 @@
-import { MAX_PLAYERS, Player, narratorId } from ".";
 import { Message, TextChannel } from "discord.js";
-import { addDays, closestTo, differenceInMinutes, parse } from "date-fns";
+import { addDays, differenceInMinutes, parse } from "date-fns";
 import { askConfirmation, createRange } from "./util";
+import { readGameData, saveGameData } from "./data";
 
+import { MAX_PLAYERS } from ".";
 import { zonedTimeToUtc } from "date-fns-tz";
 
-let channelCategoryId: string | null = null;
-let signupChannelId: string | null = null;
-let phaseTime: string | null = null;
+export async function signupCommandPrecondition(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  return { guildId, parentId } as const;
+}
 
 /*
   Required checks to set the signup channel:
@@ -21,22 +37,26 @@ export async function setSignupChannel(msg: Message) {
   // Check if user has sufficient permissions in the server
   // TODO
 
+  const guildId = msg.guild?.id;
+
   // Check if command is executed in a text channel
-  if (!(msg.channel instanceof TextChannel)) {
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
     msg.reply("the command only works in a server text channel.");
     return;
   }
+  const parentId = msg.channel?.parentID;
 
   // Check if text channel is in a channel category
-  if (!msg.channel.parentID) {
+  if (!parentId) {
     msg.reply("the text channel has to be in a channel category.");
     return;
   }
 
-  channelCategoryId = msg.channel.parentID;
+  const data = await readGameData(guildId, parentId);
+  const { signupChannelId } = data;
 
   // Ask to confirm the action is signup channel already set
-  if (signupChannelId !== null) {
+  if (signupChannelId != null) {
     if (signupChannelId === msg.channel.id) {
       await msg.reply(`<#${signupChannelId}> is already the signup channel.`);
       return;
@@ -46,17 +66,21 @@ export async function setSignupChannel(msg: Message) {
       msg,
       `<#${signupChannelId}> is already the signup channel. Would you like to replace it?`,
       async () => {
-        signupChannelId = msg.channel.id;
+        // Set new signup channel id
+        data.signupChannelId = msg.channel.id;
+        await saveGameData(guildId, parentId, data);
         await msg.reply(
-          `<#${signupChannelId}> has been set as the signup channel.`
+          `<#${msg.channel.id}> has been set as the signup channel.`
         );
-      },
-      () => {}
+      }
     );
+
     return;
   }
 
-  signupChannelId = msg.channel.id;
+  // Set new signup channel id
+  data.signupChannelId = msg.channel.id;
+  await saveGameData(guildId, parentId, data);
   await msg.reply("signup channel set.");
 }
 
@@ -69,16 +93,31 @@ export async function setSignupChannel(msg: Message) {
   (sufficient permissions, them already being narrator)
   6. If the new narrator is the same as the old one, discard the action
 */
-export async function setNarrator(
-  msg: Message,
-  narratorId: string | null,
-  narratorIdSetter: (id: string) => any
-) {
+export async function setNarrator(msg: Message) {
   // Check if user has sufficient permissions in the server
   // TODO
 
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { narratorId, signupChannelId } = data;
+
   // Check if command is executed in signup channel
   if (msg.channel.id !== signupChannelId) {
+    msg.reply("the command has to be executed in the signup channel."); // why though
     return;
   }
 
@@ -86,8 +125,9 @@ export async function setNarrator(
   const matches = msg.content.match(/setnarrator +<@!(\d+)>$/);
   if (matches && matches[1]) {
     // Check if narrator is not set
-    if (narratorId === null) {
-      await narratorIdSetter(matches[1]);
+    if (narratorId == null) {
+      data.narratorId = matches[1];
+      await saveGameData(guildId, parentId, data);
       msg.reply(`<@!${matches[1]}> has been set as narrator.`);
       return;
     }
@@ -103,17 +143,18 @@ export async function setNarrator(
       msg,
       `<@!${narratorId}> is already narrator. Would you like to replace this narrator?`,
       async () => {
-        await narratorIdSetter(msg.author.id);
+        data.narratorId = matches[1];
+        await saveGameData(guildId, parentId, data);
         await msg.reply(`<@!${matches[1]}> has been set as narrator.`);
-      },
-      () => {}
+      }
     );
     return;
   }
 
   // Check if narrator is not set
-  if (narratorId === null) {
-    await narratorIdSetter(msg.author.id);
+  if (narratorId == null) {
+    data.narratorId = msg.author.id;
+    await saveGameData(guildId, parentId, data);
     await msg.reply("you have been set as narrator.");
     return;
   }
@@ -129,10 +170,10 @@ export async function setNarrator(
     msg,
     `<@!${narratorId}> is already narrator. Would you like to replace this narrator?`,
     async () => {
-      await narratorIdSetter(msg.author.id);
+      data.narratorId = msg.author.id;
+      await saveGameData(guildId, parentId, data);
       await msg.reply("you have been set as narrator.");
-    },
-    () => {}
+    }
   );
 }
 
@@ -143,9 +184,33 @@ export async function setNarrator(
 
   After leaving the game, provide the player list.
 */
-export async function leaveGame(msg: Message, players: Player[]) {
+export async function leaveGame(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { players, signupChannelId } = data;
+
   // Check if command is executed in signup channel
   if (msg.channel.id !== signupChannelId) {
+    msg.reply("the command has to be executed in the signup channel.");
+    return;
+  }
+
+  if (!players) {
+    await msg.reply("you have not signed up for the game.");
     return;
   }
 
@@ -156,12 +221,14 @@ export async function leaveGame(msg: Message, players: Player[]) {
     return;
   }
 
+  data.players = [...players.slice(0, index), ...players.slice(index + 1)];
+
   // Remove player from players list
-  players.splice(index);
+  await saveGameData(guildId, parentId, data);
   await msg.reply("you have been removed from the game.");
 
   // List all players
-  await listPlayers(msg, players);
+  await listPlayers(msg);
 }
 /*
   Required checks to list players:
@@ -169,9 +236,26 @@ export async function leaveGame(msg: Message, players: Player[]) {
 */
 export async function listPlayers(
   msg: Message,
-  players: Player[],
   final?: boolean // This parameter is ugly
 ) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { players, signupChannelId } = data;
+
   // Check if command is executed in signup channel
   if (msg.channel.id !== signupChannelId) {
     return;
@@ -184,7 +268,7 @@ export async function listPlayers(
       `${final ? "Final list of players:" : "Players:"}
 ${(
   await Promise.all(
-    players.map(
+    (players ?? []).map(
       async (player, index) =>
         `${index + 1}. ${
           (await msg.guild?.members.fetch(player))?.displayName ??
@@ -193,7 +277,7 @@ ${(
     )
   )
 ).join("\n")}
-${Array.from(createRange(players.length + 1, MAX_PLAYERS + 1))
+${Array.from(createRange((players ?? []).length + 1, MAX_PLAYERS + 1))
   .map(value => `${value}.`)
   .join("\n")}`
     );
@@ -208,30 +292,49 @@ ${Array.from(createRange(players.length + 1, MAX_PLAYERS + 1))
 
   After signing up, provide the player list.
 */
-export async function signUp(msg: Message, players: Player[]) {
+export async function signUp(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { players, signupChannelId } = data;
+
   // Check if command is executed in signup channel
   if (msg.channel.id !== signupChannelId) {
     return;
   }
 
   // Check if player already in players list
-  if (players.find(player => player === msg.author.id)) {
+  if (players && players.find(player => player === msg.author.id)) {
     await msg.reply("you are already signed up for the game.");
     return;
   }
 
   // Check if the player list is full
-  if (players.length >= MAX_PLAYERS) {
+  if (players && players.length >= MAX_PLAYERS) {
     await msg.reply("player list is full, sign up for the next game.");
     return;
   }
 
   // Add player to players list
-  players.push(msg.author.id);
+  data.players = [...(players ?? []), msg.author.id];
+  await saveGameData(guildId, parentId, data);
   await msg.reply("you have been signed up for the game.");
 
   // List all players
-  await listPlayers(msg, players);
+  await listPlayers(msg);
 }
 
 /*
@@ -240,6 +343,24 @@ export async function signUp(msg: Message, players: Player[]) {
   2. The time format is correct
 */
 export async function setPhaseTime(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { narratorId } = data;
+
   // Check if message author is the narrator
   if (msg.author.id !== narratorId) {
     await msg.reply("you're not the narrator for this game.");
@@ -257,9 +378,9 @@ export async function setPhaseTime(msg: Message) {
   }
 
   // Set the phase time
-  phaseTime = matches[1];
-
-  await msg.reply(`phase time was set to ${phaseTime}.`);
+  data.phaseTime = matches[1];
+  await saveGameData(guildId, parentId, data);
+  await msg.reply(`phase time was set to ${data.phaseTime}.`);
 }
 
 /*
@@ -274,18 +395,32 @@ export async function setPhaseTime(msg: Message) {
   Starting the game means giving everyone a role, set up private chats
     and waiting for next phase to process actions.
 */
-export async function startGame(
-  msg: Message,
-  narratorId: string | null,
-  players: Player[]
-) {
+export async function startGame(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { phaseTime, players, narratorId, signupChannelId } = data;
+
   // Check if command is executed in signup channel (is it necessary?)
   if (msg.channel.id !== signupChannelId) {
     return;
   }
 
   // Check if narrator is set for this game
-  if (narratorId === null) {
+  if (narratorId == null) {
     await msg.reply("no narrator set for this game.");
     return;
   }
@@ -297,7 +432,7 @@ export async function startGame(
   }
 
   // Check if the player list is full
-  if (players.length < MAX_PLAYERS) {
+  if ((players ?? []).length < MAX_PLAYERS) {
     await msg.reply("cannot start a game with empty slots.");
     return;
   }
@@ -306,13 +441,13 @@ export async function startGame(
   // TODO
 
   // Check if phase time is set
-  if (phaseTime === null) {
+  if (phaseTime == null) {
     await msg.reply("no phase time set.");
     return;
   }
 
   // Provide the final list of players
-  await listPlayers(msg, players, true);
+  await listPlayers(msg, true);
 
   // Inform the phase time
   const minutesUntilPhase = differenceInMinutes(

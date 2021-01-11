@@ -24,7 +24,22 @@ export async function askConfirmation(
   msg: Message,
   prompt: string,
   onAccept: () => any,
+  timeout?: number
+): Promise<void>;
+
+export async function askConfirmation(
+  msg: Message,
+  prompt: string,
+  onAccept: () => any,
   onDecline: () => any,
+  timeout?: number
+): Promise<void>;
+
+export async function askConfirmation(
+  msg: Message,
+  prompt: string,
+  onAccept: () => any,
+  onDeclineOrTimeout?: (() => any) | number,
   timeout?: number
 ) {
   const reply = await msg.reply(prompt);
@@ -38,7 +53,15 @@ export async function askConfirmation(
       (reaction: MessageReaction, user: User) =>
         user.id === msg.author.id &&
         [ACCEPT_EMOJI, DECLINE_EMOJI].includes(reaction.emoji.name),
-      { max: 1, time: timeout ?? 30e3 }
+      {
+        max: 1,
+        time:
+          timeout ??
+          (typeof onDeclineOrTimeout === "number"
+            ? onDeclineOrTimeout
+            : null) ??
+          30e3
+      }
     );
     const reaction = reactions.find(reaction =>
       reaction.users.cache.has(msg.author.id)
@@ -46,10 +69,10 @@ export async function askConfirmation(
     if (reaction?.emoji.name === ACCEPT_EMOJI) {
       await onAccept();
     } else if (reaction?.emoji.name === DECLINE_EMOJI) {
-      await onDecline();
+      if (onDeclineOrTimeout instanceof Function) await onDeclineOrTimeout();
     }
   } catch (e) {
     console.error(e);
   }
-  reply.delete();
+  await reply.delete();
 }

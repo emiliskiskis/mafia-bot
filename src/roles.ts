@@ -1,5 +1,7 @@
+import { ACCEPT_EMOJI, DECLINE_EMOJI, PREFIX, client_id } from ".";
 import { Collection, Message, TextChannel } from "discord.js";
-import { PREFIX, client_id, narratorId } from ".";
+
+import { readGameData } from "./data";
 
 /*
   The algorithm for the ventriloquist is this:
@@ -13,6 +15,24 @@ import { PREFIX, client_id, narratorId } from ".";
     no persistent state has been implemented.
 */
 export async function doVentriloquist(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { narratorId } = data;
+
   // Check if game initiator is the narrator
   if (msg.author.id !== narratorId) {
     await msg.reply("you're not the narrator for this game.");
@@ -29,7 +49,8 @@ export async function doVentriloquist(msg: Message) {
   let ventriloquistChannel: TextChannel, puppetChannel: TextChannel;
 
   try {
-    puppetChannel = await msg.guild.channels.create("puppet-chat", {
+    puppetChannel = await msg.guild.channels.create("puppet-channel", {
+      parent: parentId,
       type: "text",
       permissionOverwrites: [
         {
@@ -38,6 +59,10 @@ export async function doVentriloquist(msg: Message) {
         },
         {
           id: client_id,
+          allow: "VIEW_CHANNEL"
+        },
+        {
+          id: narratorId,
           allow: "VIEW_CHANNEL"
         },
         {
@@ -58,8 +83,9 @@ export async function doVentriloquist(msg: Message) {
 
   try {
     ventriloquistChannel = await msg.guild.channels.create(
-      "ventriloquist-chat",
+      "ventriloquist-channel",
       {
+        parent: parentId,
         type: "text",
         permissionOverwrites: [
           {
@@ -68,6 +94,10 @@ export async function doVentriloquist(msg: Message) {
           },
           {
             id: client_id,
+            allow: "VIEW_CHANNEL"
+          },
+          {
+            id: narratorId,
             allow: "VIEW_CHANNEL"
           },
           {
@@ -100,15 +130,14 @@ export async function doVentriloquist(msg: Message) {
         // But that approach raises privacy concerns, because I can't specify to be able to write *only* in #town-square
         await puppetChannel.send("---");
         await puppetChannel.send(msg.content);
-        throw Error("Intentional error");
         // Martin M asked to provide feedback if the bot successfully relayed the message to #puppet-channel
-        await msg.react("✅");
+        await msg.react(ACCEPT_EMOJI);
       } catch (e) {
         Error.captureStackTrace(e);
         console.error(e.stack);
         // What's stupid is that the react function might be causing the error and the X react might fail again
         try {
-          await msg.react("❌");
+          await msg.react(DECLINE_EMOJI);
         } catch (e) {
           Error.captureStackTrace(e);
           console.error(e.stack);
@@ -122,6 +151,24 @@ export async function doVentriloquist(msg: Message) {
 }
 
 export async function doBlackmail(msg: Message) {
+  const guildId = msg.guild?.id;
+
+  // Check if command is executed in a text channel
+  if (!(msg.channel instanceof TextChannel) || !guildId) {
+    msg.reply("the command only works in a server text channel.");
+    return;
+  }
+  const parentId = msg.channel?.parentID;
+
+  // Check if text channel is in a channel category
+  if (!parentId) {
+    msg.reply("the text channel has to be in a channel category.");
+    return;
+  }
+
+  const data = await readGameData(guildId, parentId);
+  const { narratorId } = data;
+
   // Check if game initiator is the narrator
   if (msg.author.id !== narratorId) {
     await msg.reply("you're not the narrator for this game.");
