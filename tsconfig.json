@@ -2,17 +2,15 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2019", "ES2020", "ESNext"],
-    "module": "commonjs",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "noEmitOnError": true,
     "noImplicitAny": false,
     "outDir": "dist",
     "removeComments": false,
     "skipLibCheck": true,
-    "sourceMap": true,
     "strict": true,
-    "target": "es2019"
+    "target": "ES2018"
   },
   "include": ["src/**/*"]
 }
