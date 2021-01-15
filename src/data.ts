@@ -11,14 +11,58 @@ export interface GameData {
   signupChannelId?: Snowflake;
 }
 
-export async function readGameData(guildId: Snowflake, parentId: Snowflake) {
-  const channelPath = path.join("data", guildId, parentId);
-  const filePath = path.join(channelPath, "data.json");
+export interface GuildData {
+  narratorRoleId?: Snowflake;
+}
+
+export async function getGuildDataFilePath(guildId: Snowflake) {
+  const folderPath = path.join("data", "guilds", guildId);
+  const filePath = path.join(folderPath, "guild.json");
 
   // Ensure that file exists, make a new one if it doesn't exist
-  if (!fs.existsSync(channelPath)) {
-    await fsPromises.mkdir(channelPath, { recursive: true });
+  if (!fs.existsSync(filePath)) {
+    await fsPromises.mkdir(folderPath, { recursive: true });
   }
+
+  return filePath;
+}
+
+export async function getGameDataFilePath(
+  guildId: Snowflake,
+  gameId: Snowflake
+) {
+  const folderPath = path.join("data", "guilds", guildId, "games");
+  const filePath = path.join(folderPath, `${gameId}.json`);
+
+  // Ensure that file exists, make a new one if it doesn't exist
+  if (!fs.existsSync(filePath)) {
+    await fsPromises.mkdir(folderPath, { recursive: true });
+  }
+
+  return filePath;
+}
+
+export async function readGuildData(guildId: Snowflake) {
+  const filePath = await getGuildDataFilePath(guildId);
+
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, "{}", { encoding: "utf-8" });
+  }
+
+  return JSON.parse(
+    await fsPromises.readFile(filePath, { encoding: "utf-8" })
+  ) as GuildData;
+}
+
+export async function saveGuildData(guildId: Snowflake, data: GuildData) {
+  const filePath = await getGuildDataFilePath(guildId);
+
+  fs.writeFileSync(filePath, JSON.stringify(data), { encoding: "utf-8" });
+}
+
+export async function readGameData(guildId: Snowflake, parentId: Snowflake) {
+  const filePath = await getGameDataFilePath(guildId, parentId);
+
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(filePath, "{}", { encoding: "utf-8" });
   }
@@ -33,13 +77,7 @@ export async function saveGameData(
   parentId: Snowflake,
   data: GameData
 ) {
-  const channelPath = path.join("data", guildId, parentId);
-  const filePath = path.join(channelPath, "data.json");
-
-  // Ensure that directory exists, make a new one if it doesn't exist
-  if (!fs.existsSync(channelPath)) {
-    await fsPromises.mkdir(channelPath, { recursive: true });
-  }
+  const filePath = await getGameDataFilePath(guildId, parentId);
 
   fs.writeFileSync(filePath, JSON.stringify(data), { encoding: "utf-8" });
 }

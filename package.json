@@ -5,18 +5,21 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc --sourceMap false",
-    "debug": "nodemon --watch src src/index.ts",
-    "start": "node dist/index.js"
+    "debug": "cross-env NODE_ENV=development nodemon --watch src src/index.ts",
+    "start": "cross-env NODE_ENV=production node dist/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/knuth-shuffle": "^1.0.0",
     "@types/node": "^14.14.20",
+    "cross-env": "^7.0.3",
     "date-fns": "^2.16.1",
     "date-fns-tz": "^1.0.12",
     "discord.js": "^12.5.1",
     "dotenv": "^8.2.0",
+    "knuth-shuffle": "^1.0.8",
     "typescript": "^4.1.3"
   },
   "devDependencies": {

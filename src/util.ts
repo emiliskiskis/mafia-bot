@@ -13,6 +13,10 @@ export function logMessage(msg: Message) {
   );
 }
 
+export const randomInt = (min: number, max: number) =>
+  Math.floor(Math.random() * (max - min) + min);
+export const getRandomElement = <T>(arr: T[]) => arr[randomInt(0, arr.length)];
+
 /**
  * @param msg Received message
  * @param prompt Question to ask for confirmation
@@ -72,6 +76,7 @@ export async function askConfirmation(
       if (onDeclineOrTimeout instanceof Function) await onDeclineOrTimeout();
     }
   } catch (e) {
+    Error.captureStackTrace(e);
     console.error(e);
   }
   await reply.delete();

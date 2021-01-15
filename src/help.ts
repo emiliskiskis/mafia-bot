@@ -1,8 +1,8 @@
-import { Commands, PREFIX } from ".";
+import { PREFIX, commands } from ".";
 
 import { Message } from "discord.js";
 
-export async function listHelp(msg: Message, commands: Commands) {
+export async function listHelp(msg: Message) {
   await msg.channel.send(`\
 >>> Commands (<> are required parameters, [] are optional parameters):
 
