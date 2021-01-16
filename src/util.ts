@@ -48,9 +48,6 @@ export async function askConfirmation(
 ) {
   const reply = await msg.reply(prompt);
 
-  // Add reactions for confirming action
-  await reply.react(ACCEPT_EMOJI);
-  await reply.react(DECLINE_EMOJI);
   // Await click on reaction
   try {
     const reactions = await reply.awaitReactions(
@@ -67,6 +64,9 @@ export async function askConfirmation(
           30e3
       }
     );
+  // Add reactions for confirming action
+  await reply.react(ACCEPT_EMOJI);
+  await reply.react(DECLINE_EMOJI);
     const reaction = reactions.find(reaction =>
       reaction.users.cache.has(msg.author.id)
     );

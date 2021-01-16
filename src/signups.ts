@@ -280,13 +280,13 @@ ${(
         `${index + 1}. ${
           (await msg.guild?.members.fetch(player.id))?.displayName ??
           "[missing name]"
-        }`
+        }\n`
     )
   )
-).join("\n")}\
+).join("")}\
 ${Array.from(createRange((players ?? []).length + 1, MAX_PLAYERS + 1))
-  .map(value => `${value}.`)
-  .join("\n")}`
+  .map(value => `${value}.\n`)
+  .join("")}`
   );
 }
 
