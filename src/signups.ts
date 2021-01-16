@@ -89,7 +89,7 @@ export async function setSignupChannel(
     return;
   }
   if (!msg.member?.roles.cache.has(narratorRoleId)) {
-    msg.reply(`you do not have permission to be the narrator.`);
+    msg.reply("you do not have permission to be the narrator.");
     return;
   }
 
@@ -151,7 +151,7 @@ export async function setNarrator(
     return;
   }
   if (!msg.member?.roles.cache.has(narratorRoleId)) {
-    msg.reply(`you do not have permission to be the narrator.`);
+    msg.reply("you do not have permission to be the narrator.");
     return;
   }
 
@@ -467,7 +467,11 @@ ${(
         `${index + 1}. ${
           (await msg.guild?.members.fetch(player.id))?.displayName ??
           "[missing name]"
-        } - ${player.role?.title} (${factions[player.role!.faction]})`
+        } - ${
+          player.role
+            ? `${player.role.title} (${factions[player.role.faction]})`
+            : "[missing role]"
+        }`
     )
   )
 ).join("\n")}`

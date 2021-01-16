@@ -66,7 +66,7 @@ export const MAX_PLAYERS = process.env.NODE_ENV === "production" ? 9 : 1;
 export const ACCEPT_EMOJI = "✅";
 export const DECLINE_EMOJI = "❌";
 
-export type SaveDataFn<T extends {}> = (data: T) => Promise<void>;
+export type SaveDataFn<T> = (data: T) => Promise<void>;
 
 export type Player = {
   id: Discord.Snowflake;
